@@ -5,46 +5,80 @@ import { renderCharts, updateKPIs, updateTable } from './modules/ui-charts.js';
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQOKJdC-S3fLFW6t2E1CRKABogN-2dwhW7bQpyFldS-3uUf3oUnDsu6PNBbyyT8lsttYqJwNHgxLTSI/pub?gid=1183835234&single=true&output=csv';
 
 let pricingData = [];
-let salesData = [];
 
 // Elementos da UI
+const uploadScreen = document.getElementById('upload-screen');
+const dashboardScreen = document.getElementById('dashboard-screen');
 const uploadInput = document.getElementById('uploadExcel');
-const btnSync = document.getElementById('btnSync');
+const loadingStatus = document.getElementById('loadingStatus');
+const btnNewUpload = document.getElementById('btnNewUpload');
 
-// Inicialização
+// Inicialização: Baixa a planilha de custos em background
 document.addEventListener('DOMContentLoaded', async () => {
-    btnSync.innerText = "Sincronizando...";
-    pricingData = await fetchCSV(CSV_URL);
-    btnSync.innerText = "Sincronizar Planilha de Custos";
-    console.log("Custos carregados:", pricingData.length, "linhas.");
+    try {
+        pricingData = await fetchCSV(CSV_URL);
+        loadingStatus.innerText = "Planilha de custos sincronizada! Aguardando Excel...";
+        loadingStatus.style.color = "var(--profit)";
+    } catch (error) {
+        loadingStatus.innerText = "Erro ao buscar custos. Verifique a internet.";
+        loadingStatus.style.color = "#ef4444";
+    }
 });
 
-btnSync.addEventListener('click', async () => {
-    btnSync.innerText = "Sincronizando...";
-    pricingData = await fetchCSV(CSV_URL);
-    btnSync.innerText = "Sincronizar Planilha de Custos";
-    if (salesData.length > 0) processDashboard();
-});
-
+// Evento de Upload do Arquivo Excel
 uploadInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     if (pricingData.length === 0) {
-        alert("Aguarde a sincronização dos custos antes de enviar as vendas.");
+        alert("A planilha de custos ainda está sendo carregada. Aguarde alguns segundos.");
         return;
     }
 
-    salesData = await parseExcel(file);
-    processDashboard();
+    loadingStatus.innerText = "Processando dados e aplicando IA...";
+    loadingStatus.style.color = "var(--accent)";
+
+    try {
+        // 1. Lê o Excel
+        const salesData = await parseExcel(file);
+        
+        // 2. Cruza dados usando IA
+        const analyzedData = groupAndMatchProducts(salesData, pricingData);
+        
+        // 3. Atualiza o Dashboard
+        updateKPIs(analyzedData);
+        updateTable(analyzedData);
+        renderCharts(analyzedData);
+
+        // 4. Troca de Tela
+        showDashboard();
+    } catch (error) {
+        alert("Erro ao ler o arquivo Excel.");
+        loadingStatus.innerText = "Erro no processamento.";
+    }
 });
 
-function processDashboard() {
-    // 1. Usa IA (Fuse.js) para cruzar dados de vendas com custos
-    const analyzedData = groupAndMatchProducts(salesData, pricingData);
-    
-    // 2. Atualiza Interface
-    updateKPIs(analyzedData);
-    updateTable(analyzedData);
-    renderCharts(analyzedData);
+// Voltar para tela inicial
+btnNewUpload.addEventListener('click', () => {
+    uploadInput.value = ""; // limpa o input
+    dashboardScreen.style.opacity = "0";
+    setTimeout(() => {
+        dashboardScreen.style.display = "none";
+        uploadScreen.style.display = "flex";
+        uploadScreen.style.opacity = "1";
+        loadingStatus.innerText = "Aguardando novo Excel...";
+    }, 500);
+});
+
+// Função de animação de troca de tela
+function showDashboard() {
+    uploadScreen.style.opacity = "0";
+    setTimeout(() => {
+        uploadScreen.style.display = "none";
+        dashboardScreen.style.display = "block";
+        // Pequeno delay para a opacidade funcionar
+        setTimeout(() => {
+            dashboardScreen.style.opacity = "1";
+        }, 50);
+    }, 500); // 500ms é o tempo da transição no CSS
 }

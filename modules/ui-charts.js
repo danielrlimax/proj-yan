@@ -24,7 +24,7 @@ export function updateTable(data) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><strong>${row.nomeAgrupado}</strong></td>
-            <td>${row.anunciosContagem} variações</td>
+            <td>${row.anunciosContagem}</td>
             <td>${row.unidadesTotal}</td>
             <td>${formatMoney(row.receitaTotal)}</td>
             <td>${formatMoney(row.custoUnitarioReferencia)}</td>
@@ -37,56 +37,29 @@ export function updateTable(data) {
 
 export function renderCharts(data) {
     const top10 = data.slice(0, 10);
-    
-    const labels = top10.map(d => d.nomeAgrupado.substring(0, 25) + '...');
+    const labels = top10.map(d => d.nomeAgrupado.substring(0, 20) + '...');
     const lucros = top10.map(d => d.lucroTotal);
     const unidades = top10.map(d => d.unidadesTotal);
 
-    // Chart de Lucro
     const ctxLucro = document.getElementById('chartLucro').getContext('2d');
     if(chartLucroInstance) chartLucroInstance.destroy();
-    
     chartLucroInstance = new Chart(ctxLucro, {
         type: 'bar',
         data: {
             labels: labels,
-            datasets: [{
-                label: 'Lucro Líquido (R$)',
-                data: lucros,
-                backgroundColor: 'rgba(56, 189, 248, 0.7)',
-                borderColor: '#38bdf8',
-                borderWidth: 1,
-                borderRadius: 4
-            }]
+            datasets: [{ label: 'Lucro Líquido (R$)', data: lucros, backgroundColor: '#38bdf8', borderRadius: 4 }]
         },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' } }, x: { grid: { display: false } } },
-            color: '#fff'
-        }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, color: '#fff' }
     });
 
-    // Chart de Vendas (Pizza/Doughnut)
     const ctxVendas = document.getElementById('chartVendas').getContext('2d');
     if(chartVendasInstance) chartVendasInstance.destroy();
-
     chartVendasInstance = new Chart(ctxVendas, {
         type: 'doughnut',
         data: {
             labels: labels,
-            datasets: [{
-                data: unidades,
-                backgroundColor: [
-                    '#38bdf8', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-                    '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
-                ],
-                borderWidth: 0
-            }]
+            datasets: [{ data: unidades, backgroundColor: ['#38bdf8', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'], borderWidth: 0 }]
         },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'right', labels: { color: '#fff' } } }
-        }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#fff' } } } }
     });
 }

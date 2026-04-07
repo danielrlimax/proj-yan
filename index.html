@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard de Vendas Inteligente</title>
+    <title>Analytics Dashboard</title>
     <link rel="stylesheet" href="style.css">
     
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
@@ -14,16 +14,28 @@
 <body>
     <div class="bg-glass-blobs"></div>
 
-    <div class="container">
+    <div id="upload-screen" class="full-screen-center">
+        <div class="glass-panel upload-box">
+            <h1>Bem-vindo ao Analytics</h1>
+            <p>Faça o upload do seu relatório de vendas (Excel) para gerar o dashboard.</p>
+            
+            <div style="margin-top: 30px;">
+                <input type="file" id="uploadExcel" accept=".xlsx, .xls, .csv" hidden>
+                <label for="uploadExcel" class="btn primary btn-large">Selecionar Planilha (Excel)</label>
+            </div>
+            
+            <p id="loadingStatus" class="status-text">Sincronizando custos com Google Sheets...</p>
+        </div>
+    </div>
+
+    <div id="dashboard-screen" class="container" style="display: none; opacity: 0;">
         <header class="glass-panel">
             <div class="header-titles">
-                <h1>Analytics & Precificação</h1>
-                <p>Análise de Vendas com IA de Agrupamento</p>
+                <h1>Dashboard de Vendas</h1>
+                <p>Análise Inteligente e Precificação</p>
             </div>
             <div class="header-actions">
-                <input type="file" id="uploadExcel" accept=".xlsx, .xls, .csv" hidden>
-                <label for="uploadExcel" class="btn primary">Carregar Vendas (Excel)</label>
-                <button id="btnSync" class="btn secondary">Sincronizar Planilha de Custos</button>
+                <button id="btnNewUpload" class="btn secondary">Nova Planilha</button>
             </div>
         </header>
 
@@ -48,7 +60,7 @@
 
         <section class="charts-grid">
             <div class="chart-container glass-panel">
-                <h3>Top Produtos por Lucro</h3>
+                <h3>Top Produtos por Lucro Líquido</h3>
                 <canvas id="chartLucro"></canvas>
             </div>
             <div class="chart-container glass-panel">
@@ -58,23 +70,21 @@
         </section>
 
         <section class="table-container glass-panel">
-            <h3>Detalhamento por Produto Agrupado (IA)</h3>
+            <h3>Detalhamento de Produtos (Agrupado por IA)</h3>
             <div class="table-wrapper">
                 <table id="dataTable">
                     <thead>
                         <tr>
-                            <th>Produto (Agrupado)</th>
-                            <th>Anúncios Vinculados</th>
+                            <th>Produto Encontrado (IA)</th>
+                            <th>Variações Agrupadas</th>
                             <th>Unidades</th>
-                            <th>Receita</th>
-                            <th>Custo Médio</th>
+                            <th>Receita Total</th>
+                            <th>Custo Base Usado</th>
                             <th>Lucro Líquido</th>
                             <th>Margem</th>
                         </tr>
                     </thead>
-                    <tbody id="tableBody">
-                        <tr><td colspan="7" class="empty-state">Aguardando importação de dados...</td></tr>
-                    </tbody>
+                    <tbody id="tableBody"></tbody>
                 </table>
             </div>
         </section>
