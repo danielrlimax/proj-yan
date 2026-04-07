@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Vendas Inteligente</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js/dist/fuse.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="bg-glass-blobs"></div>
+
+    <div class="container">
+        <header class="glass-panel">
+            <div class="header-titles">
+                <h1>Analytics & Precificação</h1>
+                <p>Análise de Vendas com IA de Agrupamento</p>
+            </div>
+            <div class="header-actions">
+                <input type="file" id="uploadExcel" accept=".xlsx, .xls, .csv" hidden>
+                <label for="uploadExcel" class="btn primary">Carregar Vendas (Excel)</label>
+                <button id="btnSync" class="btn secondary">Sincronizar Planilha de Custos</button>
+            </div>
+        </header>
+
+        <section class="kpi-grid">
+            <div class="kpi-card glass-panel">
+                <h3>Lucro Total Líquido</h3>
+                <h2 id="kpiLucroTotal">R$ 0,00</h2>
+            </div>
+            <div class="kpi-card glass-panel">
+                <h3>Receita Bruta</h3>
+                <h2 id="kpiReceita">R$ 0,00</h2>
+            </div>
+            <div class="kpi-card glass-panel">
+                <h3>Unidades Vendidas</h3>
+                <h2 id="kpiUnidades">0</h2>
+            </div>
+            <div class="kpi-card glass-panel">
+                <h3>Margem Média Real</h3>
+                <h2 id="kpiMargem">0%</h2>
+            </div>
+        </section>
+
+        <section class="charts-grid">
+            <div class="chart-container glass-panel">
+                <h3>Top Produtos por Lucro</h3>
+                <canvas id="chartLucro"></canvas>
+            </div>
+            <div class="chart-container glass-panel">
+                <h3>Participação de Vendas (Unidades)</h3>
+                <canvas id="chartVendas"></canvas>
+            </div>
+        </section>
+
+        <section class="table-container glass-panel">
+            <h3>Detalhamento por Produto Agrupado (IA)</h3>
+            <div class="table-wrapper">
+                <table id="dataTable">
+                    <thead>
+                        <tr>
+                            <th>Produto (Agrupado)</th>
+                            <th>Anúncios Vinculados</th>
+                            <th>Unidades</th>
+                            <th>Receita</th>
+                            <th>Custo Médio</th>
+                            <th>Lucro Líquido</th>
+                            <th>Margem</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <tr><td colspan="7" class="empty-state">Aguardando importação de dados...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
