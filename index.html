@@ -1,93 +1,120 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analytics Dashboard</title>
-    <link rel="stylesheet" href="style.css">
-    
-    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <title>Análise de Margens Pro - Rycca | GitHub Pages Ready</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/fuse.js/dist/fuse.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
 </head>
 <body>
-    <div class="bg-glass-blobs"></div>
-
-    <div id="upload-screen" class="full-screen-center">
-        <div class="glass-panel upload-box">
-            <h1>Bem-vindo ao Analytics</h1>
-            <p>Faça o upload do seu relatório de vendas (Excel) para gerar o dashboard.</p>
+    <div id="loader-screen" class="screen-center">
+        <div class="glass-card upload-container">
+            <div class="logo">
+                <h1>Analytics Financeiro v4.0</h1>
+                <p>Perfeito para GitHub Pages 🚀</p>
+            </div>
+            <p id="status-text">Carregue os arquivos para análise completa</p>
             
-            <div style="margin-top: 30px;">
-                <input type="file" id="uploadExcel" accept=".xlsx, .xls, .csv" hidden>
-                <label for="uploadExcel" class="btn primary btn-large">Selecionar Planilha (Excel)</label>
+            <div class="upload-area">
+                <div class="file-upload-group">
+                    <label for="csv-input" class="file-label">
+                        📊 CSV Custos (Precificação Shein.csv)
+                        <input type="file" id="csv-input" hidden accept=".csv">
+                    </label>
+                    <small id="csv-file-name" class="file-name hidden">Nenhum arquivo</small>
+                </div>
+                
+                <div class="file-upload-group">
+                    <label for="excel-input" class="file-label">
+                        📈 XLSX Vendas (Vendas por Produtos.xlsx)
+                        <input type="file" id="excel-input" hidden accept=".xlsx,.xls">
+                    </label>
+                    <small id="excel-file-name" class="file-name hidden">Nenhum arquivo</small>
+                </div>
+                
+                <button id="analyze-btn" class="btn btn-primary" disabled>
+                    🔬 Analisar Lucratividade
+                </button>
             </div>
             
-            <p id="loadingStatus" class="status-text">Sincronizando custos com Google Sheets...</p>
+            <div class="upload-hint">
+                <small>Upload: "Precificação Marketplace - Shein.csv" + seu XLSX de vendas</small>
+            </div>
         </div>
     </div>
 
-    <div id="dashboard-screen" class="container" style="display: none; opacity: 0;">
-        <header class="glass-panel">
-            <div class="header-titles">
-                <h1>Dashboard de Vendas</h1>
-                <p>Análise Inteligente e Precificação</p>
+    <div id="dashboard-screen" class="hidden">
+        <header class="main-header">
+            <div class="logo">
+                <h2>Relatório de Lucratividade Pro</h2>
+                <p>👉 Cálculo: Preço - 20% Com. - 5% Imp. - Custo Shein - Frete</p>
             </div>
-            <div class="header-actions">
-                <button id="btnNewUpload" class="btn secondary">Nova Planilha</button>
-            </div>
+            <button onclick="location.reload()" class="btn btn-secondary">
+                🔄 Novo Upload
+            </button>
         </header>
 
-        <section class="kpi-grid">
-            <div class="kpi-card glass-panel">
-                <h3>Lucro Total Líquido</h3>
-                <h2 id="kpiLucroTotal">R$ 0,00</h2>
+        <section class="kpi-row">
+            <div class="kpi-card highlight">
+                <small>LUCRO LÍQUIDO TOTAL</small>
+                <h2 id="total-profit" class="text-success">R$ 0,00</h2>
             </div>
-            <div class="kpi-card glass-panel">
-                <h3>Receita Bruta</h3>
-                <h2 id="kpiReceita">R$ 0,00</h2>
+            <div class="kpi-card">
+                <small>RECEITA BRUTA</small>
+                <h2 id="total-revenue">R$ 0,00</h2>
             </div>
-            <div class="kpi-card glass-panel">
-                <h3>Unidades Vendidas</h3>
-                <h2 id="kpiUnidades">0</h2>
+            <div class="kpi-card">
+                <small>ROI MÉDIO</small>
+                <h2 id="avg-roi">0%</h2>
             </div>
-            <div class="kpi-card glass-panel">
-                <h3>Margem Média Real</h3>
-                <h2 id="kpiMargem">0%</h2>
+            <div class="kpi-card">
+                <small>MARGEM LÍQUIDA</small>
+                <h2 id="avg-margin">0%</h2>
             </div>
         </section>
 
         <section class="charts-grid">
-            <div class="chart-container glass-panel">
-                <h3>Top Produtos por Lucro Líquido</h3>
-                <canvas id="chartLucro"></canvas>
+            <div class="chart-container glass-card elevate">
+                <h3>📈 Top por Lucro Líquido</h3>
+                <canvas id="profitChart"></canvas>
             </div>
-            <div class="chart-container glass-panel">
-                <h3>Participação de Vendas (Unidades)</h3>
-                <canvas id="chartVendas"></canvas>
+            <div class="chart-container glass-card elevate">
+                <h3>📊 Volume por Categoria</h3>
+                <canvas id="volumeChart"></canvas>
             </div>
         </section>
 
-        <section class="table-container glass-panel">
-            <h3>Detalhamento de Produtos (Agrupado por IA)</h3>
+        <section class="table-section glass-card elevate">
+            <div class="table-header">
+                <h3>📋 Análise Detalhada por Kit/Produto</h3>
+                <span class="badge success">Cruzamento Inteligente Shein + Vendas</span>
+            </div>
             <div class="table-wrapper">
-                <table id="dataTable">
+                <table id="results-table">
                     <thead>
                         <tr>
-                            <th>Produto Encontrado (IA)</th>
-                            <th>Variações Agrupadas</th>
-                            <th>Unidades</th>
-                            <th>Receita Total</th>
-                            <th>Custo Base Usado</th>
-                            <th>Lucro Líquido</th>
+                            <th>Kit / Produto</th>
+                            <th>Unidades Vendidas</th>
+                            <th>Ticket Médio</th>
+                            <th>Custo Kit (Shein)</th>
+                            <th>Lucro Total</th>
+                            <th>ROI</th>
                             <th>Margem</th>
+                            <th>Break Even</th>
                         </tr>
                     </thead>
-                    <tbody id="tableBody"></tbody>
+                    <tbody id="table-body"></tbody>
                 </table>
             </div>
         </section>
+
+        <footer class="footer">
+            <p>Desenvolvido com ❤️ para GitHub Pages | BLACKBOXAI</p>
+        </footer>
     </div>
 
     <script type="module" src="app.js"></script>
