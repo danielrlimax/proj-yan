@@ -1,5 +1,6 @@
 import type { XLSXRow, CSVRow, ProductData, DashboardMetrics, LojaMetric, SKUMetric } from '../types';
 
+// Normaliza strings para facilitar a comparação (minúsculas, sem acentos)
 function normalize(s: string): string {
   return s
     .toLowerCase()
@@ -9,6 +10,7 @@ function normalize(s: string): string {
     .trim();
 }
 
+// Compara nomes de produtos (Focado em achar palavras-chave em comum)
 function matchScore(a: string, b: string): number {
   const na = normalize(a);
   const nb = normalize(b);
@@ -23,92 +25,130 @@ function matchScore(a: string, b: string): number {
   return total > 0 ? (overlap / total) * 60 : 0;
 }
 
+// Padroniza os nomes das lojas para agrupar todas do mesmo marketplace
+function getStoreAlias(storeName: string): string {
+  const n = normalize(storeName);
+  if (n.includes('meli') || n.includes('mercado libre') || n === 'ml' || n.includes('ml cla')) return 'ml';
+  if (n.includes('shopee')) return 'shopee';
+  if (n.includes('shein')) return 'shein';
+  if (n.includes('tiktok') || n.includes('tik tok')) return 'tiktok';
+  if (n.includes('amazon')) return 'amazon';
+  if (n.includes('magalu') || n.includes('magazine')) return 'magalu';
+  return n;
+}
+
 function findBestCSVMatch(xlsxRow: XLSXRow, csvRows: CSVRow[]): CSVRow | null {
   let best: CSVRow | null = null;
-  let bestScore = 20;
+  let bestScore = 0;
 
-  const sku = normalize(xlsxRow.skuPrincipal);
-  const produto = normalize(xlsxRow.produto);
+  const skuXlsx = normalize(xlsxRow.skuPrincipal || '');
+  const produtoXlsx = normalize(xlsxRow.produto || '');
+  const lojaAliasXlsx = getStoreAlias(xlsxRow.loja || '');
 
   for (const csvRow of csvRows) {
     let score = 0;
-    if (sku) score = Math.max(score, matchScore(sku, csvRow.produto));
-    score = Math.max(score, matchScore(produto, csvRow.produto));
+    const produtoCsv = normalize(csvRow.produto || '');
+    const mktAliasCsv = getStoreAlias(csvRow.mkt || '');
+
+    // 1. Pontuação pelo Nome/SKU do Produto
+    if (skuXlsx && produtoCsv.includes(skuXlsx)) score += 50;
+    score += matchScore(produtoXlsx, produtoCsv);
+
+    // 2. Pontuação por Canal de Venda
+    if (lojaAliasXlsx === mktAliasCsv) {
+      score += 30;
+
+      // 3. REGRA DO MERCADO LIVRE (Desempate entre Premium e Clássico pelo preço)
+      if (lojaAliasXlsx === 'ml') {
+        const precoReferenciaCsv = csvRow.precoRealPromo > 0 ? csvRow.precoRealPromo : csvRow.precoVenda;
+        const diferencaPreco = Math.abs(xlsxRow.precoMedio - precoReferenciaCsv);
+
+        if (diferencaPreco <= 2.00) {
+          score += 50; 
+        } else if (diferencaPreco <= 5.00) {
+          score += 25; 
+        }
+      }
+    }
 
     if (score > bestScore) {
       bestScore = score;
       best = csvRow;
     }
   }
-  return best;
-}
 
-// Função inteligente que identifica as taxas EXATAS de cada loja
-function getTaxasPorLoja(loja: string) {
-  const lojaNorm = normalize(loja);
-  if (lojaNorm.includes('tiktok')) return { comissao: 0.21, frete: 6.50 };
-  if (lojaNorm.includes('shein')) return { comissao: 0.20, frete: 6.00 };
-  if (lojaNorm.includes('shopee')) return { comissao: 0.20, frete: 6.00 };
-  
-  if (lojaNorm.includes('mercado') || lojaNorm.includes('meli') || lojaNorm.includes('ml')) {
-    // Diferencia o ML Clássico do Premium (Padrão é Premium 19% se não especificar)
-    if (lojaNorm.includes('classico') || lojaNorm.includes('cla')) {
-      return { comissao: 0.14, frete: 8.50 };
-    }
-    return { comissao: 0.19, frete: 8.50 };
-  }
-  
-  // Taxa média genérica caso seja uma loja desconhecida
-  return { comissao: 0.18, frete: 6.00 };
+  return bestScore >= 40 ? best : null;
 }
 
 export function computeDashboard(xlsxRows: XLSXRow[], csvRows: CSVRow[]): DashboardMetrics {
   const products: ProductData[] = [];
-  const IMPOSTO = 0.05; // 5% de Simples Nacional (Imposto Padrão)
-  const MARGEM_ALVO_MEDIA = 0.10; // Trava de 10% exigida pelo cliente
+
+  // IMPOSTO ESCONDIDO NO CSV (5% Simples Nacional)
+  // Matematicamente comprovado pela diferença de R$ 2,50 no lucro da blusa de R$ 49,90
+  const IMPOSTO_PCT = 0.05; 
 
   for (const row of xlsxRows) {
     const csvMatch = findBestCSVMatch(row, csvRows);
+    const precoVenda = row.precoMedio;
+    const unidades = row.unidadesVendidas;
 
-    let custo = 0;
-    const taxasLoja = getTaxasPorLoja(row.loja);
-    let comissao = taxasLoja.comissao;
-    let frete = taxasLoja.frete;
+    let custoProduto = 0;
+    let comissaoPct = 0;
+    let freteECustoFixo = 0;
 
-    const precoVenda = row.precoMedio > 0 ? row.precoMedio : (csvMatch?.precoRealPromo || 0);
-
-    // Se achou no CSV e os valores estiverem preenchidos, usa os do CSV
+    // Se achou correspondência no CSV
     if (csvMatch) {
-      if (csvMatch.comissao > 0) comissao = csvMatch.comissao;
-      if (csvMatch.frete > 0) frete = csvMatch.frete;
-      if (csvMatch.custo > 0) custo = csvMatch.custo;
+      // Usa o custo do CSV. Se por acaso estiver zerado, assume 60% do valor de venda
+      custoProduto = csvMatch.custo > 0 ? csvMatch.custo : precoVenda * 0.60;
+      freteECustoFixo = csvMatch.frete > 0 ? csvMatch.frete : 0;
+      
+      const mktNomeOriginal = normalize(csvMatch.mkt || '');
+      if (mktNomeOriginal === 'ml') {
+        comissaoPct = 0.19; // ML Premium
+      } else if (mktNomeOriginal.includes('ml cla')) {
+        comissaoPct = 0.14; // ML Clássico
+      } else {
+        comissaoPct = csvMatch.comissao > 0 ? csvMatch.comissao : 0.16; 
+      }
+      
+    } else {
+      // FALLBACK MAIS REALISTA (~10% a 12% de margem)
+      // Para produtos do XLSX que não foram encontrados no CSV
+      custoProduto = precoVenda * 0.60; // Mercadoria = 60% do preço
+      const loja = normalize(row.loja || '');
+      
+      if (loja.includes('meli')) {
+        comissaoPct = 0.16; // Puxamos para a média (16%)
+        freteECustoFixo = precoVenda < 79 ? 6.00 : 0.00;
+      } else if (loja.includes('shopee')) {
+        comissaoPct = 0.20;
+        freteECustoFixo = 3.00;
+      } else if (loja.includes('shein')) {
+        comissaoPct = 0.16;
+        freteECustoFixo = 0.00;
+      } else {
+        comissaoPct = 0.16;
+        freteECustoFixo = 3.00;
+      }
     }
 
-    // === CÁLCULO REVERSO PARA CRAVAR 10% DE MARGEM ===
-    // Se a planilha estiver com o Custo do produto em branco (ou 0),
-    // o sistema descobre qual DEVERIA ser o custo para que a margem seja exatamente 10%
-    if (custo === 0 && precoVenda > 0) {
-      const lucroDesejado = precoVenda * MARGEM_ALVO_MEDIA;
-      const despesasConhecidas = frete + (precoVenda * comissao) + (precoVenda * IMPOSTO);
-      
-      // O custo de fábrica passa a ser o que sobrou do preço de venda
-      custo = precoVenda - despesasConhecidas - lucroDesejado;
-      
-      // Trava de segurança caso o frete/comissão engula todo o preço
-      if (custo < 0) custo = precoVenda * 0.3; 
-    }
-
-    const valorComissao = precoVenda * comissao;
-    const valorImposto = precoVenda * IMPOSTO;
-    const gastosTotais = custo + frete + valorComissao + valorImposto;
-
-    const lucroUnitario = precoVenda - gastosTotais;
+    // Calcula os descontos
+    const valorComissao = precoVenda * comissaoPct;
+    const valorImposto = precoVenda * IMPOSTO_PCT; // Aplica os 5% que faltavam!
+    
+    // Lucro Unitário = Venda - Custo - Comissão - Imposto - Frete
+    const lucroUnitario = precoVenda - custoProduto - valorComissao - valorImposto - freteECustoFixo;
     const margemReal = precoVenda > 0 ? (lucroUnitario / precoVenda) : 0;
 
-    const receitaBrutaTotal = precoVenda * row.unidadesVendidas;
-    const lucroTotal = lucroUnitario * row.unidadesVendidas;
-    const custoTotal = gastosTotais * row.unidadesVendidas;
-    const roi = custoTotal > 0 ? (lucroTotal / custoTotal) * 100 : 0;
+    // Totais do Produto
+    const receitaTotal = row.pagamentosRecebidos > 0 ? row.pagamentosRecebidos : (precoVenda * unidades);
+    const custoMercadoriaTotal = custoProduto * unidades;
+    const despesasVendaTotal = (valorComissao + valorImposto + freteECustoFixo) * unidades;
+    
+    const lucroTotal = receitaTotal - custoMercadoriaTotal - despesasVendaTotal;
+    
+    const investimentoTotal = custoMercadoriaTotal + despesasVendaTotal;
+    const roi = investimentoTotal > 0 ? (lucroTotal / investimentoTotal) * 100 : 0;
 
     products.push({
       produto: row.produto,
@@ -116,32 +156,39 @@ export function computeDashboard(xlsxRows: XLSXRow[], csvRows: CSVRow[]): Dashbo
       skuPrincipal: row.skuPrincipal,
       idAnuncio: row.idAnuncio,
       pedidosValidos: row.pedidosValidos,
-      unidadesVendidas: row.unidadesVendidas,
-      pagamentosRecebidos: row.pagamentosRecebidos,
+      unidadesVendidas: unidades,
+      pagamentosRecebidos: receitaTotal,
       precoMedio: precoVenda,
-      custo,
+      custo: custoProduto,
       lucroUnitario,
       margemReal,
-      comissao,
-      frete,
-      receitaTotal: receitaBrutaTotal,
-      custoTotal,
+      comissao: comissaoPct,
+      frete: freteECustoFixo + valorImposto, // Agrupado para refletir o custo total extra
+      receitaTotal,
+      custoTotal: custoMercadoriaTotal, 
       lucroTotal,
       roi,
     });
   }
 
+  // Ordena os produtos pela maior receita
   products.sort((a, b) => b.receitaTotal - a.receitaTotal);
 
   const totalReceita = products.reduce((s, p) => s + p.receitaTotal, 0);
-  const totalCusto = products.reduce((s, p) => s + p.custoTotal, 0);
+  const totalCustoGeral = products.reduce((s, p) => {
+    // Custo Total agora engloba: Mercadoria + Frete + Comissão + Impostos
+    return s + p.custoTotal + (p.frete * p.unidadesVendidas) + (p.precoMedio * p.comissao * p.unidadesVendidas);
+  }, 0);
+
   const totalLucro = products.reduce((s, p) => s + p.lucroTotal, 0);
   const totalPedidos = products.reduce((s, p) => s + p.pedidosValidos, 0);
   const totalUnidades = products.reduce((s, p) => s + p.unidadesVendidas, 0);
+  
   const margemMediaGeral = totalReceita > 0 ? (totalLucro / totalReceita) * 100 : 0;
   const ticketMedio = totalPedidos > 0 ? totalReceita / totalPedidos : 0;
-  const roiMedio = totalCusto > 0 ? (totalLucro / totalCusto) * 100 : 0;
+  const roiMedio = totalCustoGeral > 0 ? (totalLucro / totalCustoGeral) * 100 : 0;
 
+  // Por loja
   const lojaMap = new Map<string, LojaMetric>();
   for (const p of products) {
     const lojaKey = p.loja || 'Desconhecido';
@@ -159,6 +206,7 @@ export function computeDashboard(xlsxRows: XLSXRow[], csvRows: CSVRow[]): Dashbo
     margem: l.receita > 0 ? (l.lucro / l.receita) * 100 : 0,
   })).sort((a, b) => b.receita - a.receita);
 
+  // Por SKU
   const skuMap = new Map<string, SKUMetric>();
   for (const p of products) {
     const skuKey = p.skuPrincipal || p.produto.substring(0, 30);
@@ -175,6 +223,7 @@ export function computeDashboard(xlsxRows: XLSXRow[], csvRows: CSVRow[]): Dashbo
     margem: s.receita > 0 ? (s.lucro / s.receita) * 100 : 0,
   })).sort((a, b) => b.receita - a.receita).slice(0, 15);
 
+  // Lucro Acumulado
   let acum = 0;
   const lucroAcumulado = products.map((p, i) => {
     acum += p.lucroTotal;
@@ -186,6 +235,7 @@ export function computeDashboard(xlsxRows: XLSXRow[], csvRows: CSVRow[]): Dashbo
     };
   });
 
+  // Distribuição de Margem
   const faixas = ['<5%', '5-10%', '10-15%', '15-20%', '>20%'];
   const counts = [0, 0, 0, 0, 0];
   for (const p of products) {
@@ -200,7 +250,7 @@ export function computeDashboard(xlsxRows: XLSXRow[], csvRows: CSVRow[]): Dashbo
 
   return {
     totalReceita,
-    totalCusto,
+    totalCusto: totalCustoGeral,
     totalLucro,
     totalPedidos,
     totalUnidades,

@@ -1,6 +1,7 @@
 import Papa from 'papaparse';
 import type { CSVRow } from '../types';
 
+// NOVO LINK ATUALIZADO
 const CSV_URL =
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vTRAvoDqn3ZCG2VltNonw3yIL80nYdtkBvNYalFdUey0B2fyVf26_6_Mxd9CLkrPK3g1EtszJAsZ7rF/pub?output=csv';
 
@@ -35,20 +36,18 @@ export async function fetchCSVData(): Promise<CSVRow[]> {
         const rows = results.data as string[][];
         const csvRows: CSVRow[] = [];
 
+        // ATENÇÃO: Confirme se as colunas do novo CSV batem com estes índices (A=0, B=1...)
         for (let i = 1; i < rows.length; i++) {
           const row = rows[i];
           const produto = (row[5] ?? '').trim();
           if (!produto) continue;
 
-          // Se as taxas não estiverem preenchidas nas colunas individuais do produto (L a N), 
-          // ele herda de forma segura as globais (A a C).
-          const mktStr = (row[11] || row[0] || '').trim();
-          const comissaoStr = (row[12] || row[1] || '').trim();
-          const freteStr = (row[13] || row[2] || '').trim();
-          
-          const custoStr = (row[14] ?? '').trim();
-          const lucroStr = (row[15] ?? '').trim();
+          // Os índices abaixo precisam refletir a estrutura exata do novo link.
+          const custoStr = (row[14] ?? '').trim(); // Coluna O = Custo base do produto
+          const lucroStr = (row[15] ?? '').trim(); 
           const margemRealStr = (row[10] ?? '').trim();
+          const comissaoStr = (row[12] ?? row[1] ?? '').trim();
+          const freteStr = (row[13] ?? row[2] ?? '').trim();
           const precoVendaStr = (row[7] ?? '').trim();
           const precoRealStr = (row[8] ?? '').trim();
           const margemAlvoStr = (row[6] ?? '').trim();
@@ -61,11 +60,11 @@ export async function fetchCSVData(): Promise<CSVRow[]> {
             precoRealPromo: parseBRL(precoRealStr),
             difPreco: parseBRL(difPrecoStr),
             margemReal: parsePercent(margemRealStr),
-            mkt: mktStr,
+            mkt: (row[11] ?? row[0] ?? '').trim(),
             comissao: parsePercent(comissaoStr),
             frete: parseBRL(freteStr),
             custo: parseBRL(custoStr),
-            lucroUnitario: parseBRL(lucroStr),
+            lucroUnitario: parseBRL(lucroStr), // Mantido por compatibilidade, mas o cálculo final será refeito dinamicamente
           });
         }
 
